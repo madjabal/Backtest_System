@@ -1,0 +1,31 @@
+
+Variable ordering
+- Portfolio
+- ticker(s)
+- features
+- model
+- date
+- date format
+- historical depth
+- training depth
+- start
+- end
+- interval
+- data path
+- prefix 
+
+
+
+
+
+
+
+
+500
+12
+4
+top 15
+Close Volume
+
+
+
