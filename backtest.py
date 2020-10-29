@@ -9,8 +9,9 @@ import sklearn as sk
 from sklearn.preprocessing import StandardScaler
 
 
-def build_snp(date, date_format='%Y-%m-%d', data_path='data/'):
+def build_snp(date, data_path='data/'):
     
+    date_format='%Y-%m-%d'
     date_format2 = '%B %d, %Y'
     
     curr = pd.read_csv(data_path + 'snp_current.csv')
@@ -73,7 +74,7 @@ def get_data(tickers, start='2000-01-01', data_path='data/', get_new=False):
             temp_hist.reset_index(inplace=True)
             temp_hist.dropna(axis=0, inplace=True)
             temp_hist.to_csv(data_path + prefix + ticker_label, index=False)
-            sleep(.5)
+            sleep(.25)
             
     return None
 
@@ -144,9 +145,10 @@ def build_data(interval, data_path='data/'):
     return None
 
 
-def check_ticker(ticker, offset, interval = '1mo', data_path='data/'):
+def check_ticker(ticker, offset, interval='1mo', data_path='data/'):
     prefix = interval + '/'
-    ticker_df = pd.read_csv(data_path + prefix + ticker + '.csv')
+    ticker_df = pd.read_csv(data_path + prefix + ticker + '.csv').set_index('Date')
+    ticker_df.index = pd.to_datetime(ticker_df.index)
     if len(ticker_df) >= offset:
         return ticker_df
     return False
@@ -183,15 +185,23 @@ class Backtest:
         if type(offset) == bool:
             offset = self.train_depth + self.hist_depth + 60 + 6
         
-        get_data(self.tickers, data_path=self.data_path, start=self.data_start, get_new=get_new)
+        get_data(
+            self.tickers, data_path=self.data_path, 
+            start=self.data_start, get_new=get_new
+            )
         
         ticker_dict = {}
         
         for ticker in self.tickers:
-            ticker_df = check_ticker(ticker, offset, data_path=data_path)
+            ticker_df = check_ticker(
+                ticker, offset, interval=self.interval, 
+                data_path=self.data_path
+                )
             if type(ticker_df) != bool:
                 ticker_dict[ticker] = ticker_df
         
+        self.tickers = list(ticker_dict.keys())
+        self.portfolio = ticker_dict
         return ticker_dict
 
 
