@@ -154,7 +154,14 @@ def check_ticker(ticker, offset, interval='1mo', data_path='data/'):
     return False
 
 
+# TODO Finish function
+def build_returns(self, interval, data):
+    print('UNFINISHED')
+    return None
+
+
 class Backtest:
+    # TODO Add usability to eliminate tickers at initialization (check dates)
     def __init__(self, tickers, hist_depth=None, train_depth=None, features=[], 
         data_path = 'data/', interval = '1mo', data_start = '2001-01-01', 
         target='Close', download_new=False):
@@ -183,7 +190,7 @@ class Backtest:
     
     def build_portfolio(self, offset=True, get_new=False):
         if type(offset) == bool:
-            offset = self.train_depth + self.hist_depth + 60 + 6
+            offset = self.train_depth + self.hist_depth + 60 + 12 
         
         get_data(
             self.tickers, data_path=self.data_path, 
@@ -198,6 +205,8 @@ class Backtest:
                 data_path=self.data_path
                 )
             if type(ticker_df) != bool:
+                ticker_df.set_index('Date', inplace=True)
+                ticker_df.index = pd.to_datetime(ticker_df.index)
                 ticker_dict[ticker] = ticker_df
         
         self.tickers = list(ticker_dict.keys())
@@ -205,4 +214,56 @@ class Backtest:
         return ticker_dict
 
 
+    def get_returns(self, symbols, date):
+        returns = []
+        for ticker in symbols:
+            temp_ticker_dict = self.portfolio[ticker].loc[date]
+            returns.append((temp_ticker_dict['Close'] - temp_ticker_dict['Open'])/temp_ticker_dict['Open'])
+        return returns
+
+
+    def build_train(self, date):
+        X = np.zeros((self.train_depth * len(self.portfolio), self.hist_depth * len(self.features)))
+        y = np.zeros(self.train_depth * len(self.portfolio))
+        j = 0
+        for ticker in self.portfolio:
+            ticker_df = self.portfolio[ticker]
+            date_i = ticker_df.index.get_loc(date)
+            for i in range(1, self.train_depth + 1):
+                start = date_i - i - self.hist_depth
+                end = date_i - i 
+                X[j] = ticker_df.iloc[start:end][self.features].values.flatten()
+                y[j] = ticker_df.iloc[date_i - i + 1][self.target]
+                j += 1
+        return X, y
     
+    
+    def build_test(self, date):
+        X = np.zeros((len(self.portfolio), self.hist_depth * len(self.features)))
+        tickers = list(self.portfolio.keys())
+        j = 0
+        for ticker in tickers:
+            ticker_df = self.portfolio[ticker]
+            date_i = ticker_df.index.get_loc(date)
+            start = date_i - self.hist_depth
+            end = date_i
+            X[j] = ticker_df.iloc[start:end][self.features].values.flatten()
+            j += 1
+        return X, tickers
+    
+
+    # TODO Finish Function
+    def build_machine(self, model, date):
+        print('UNFINISHED')
+        return None
+    
+
+    # TODO Finish Function
+    def backtest(self, model):
+        print('UNFINISHED')
+        return None
+
+
+    # TODO Look into cleaning portfolio month by month
+
+    # TODO Documentation and analysis functions
