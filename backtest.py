@@ -1,5 +1,6 @@
 
 import yfinance as yf
+import numpy as np
 import pandas as pd
 from datetime import datetime
 import os
@@ -154,17 +155,27 @@ def check_ticker(ticker, offset, interval='1mo', data_path='data/'):
     return False
 
 
-# TODO Finish function
-def build_returns(self, interval, data):
-    print('UNFINISHED')
+def build_returns(interval, data_path='data/'):
+    prefix = interval + '/'
+    os.makedirs(data_path + prefix, exist_ok=True)
+
+    ticker_labels = os.listdir(data_path + prefix)
+
+    for ticker_label in ticker_labels:
+        ticker_df = pd.read_csv(data_path + prefix + ticker_label)
+        ticker_df['Return'] = (ticker_df['Close'] - ticker_df['Open'])/ticker_df['Open']
+        ticker_df.to_csv(data_path + prefix + ticker_label, index=False)
     return None
 
+# TODO Finish this function and 
+def fixed_long_short():
+    return None
 
 class Backtest:
     # TODO Add usability to eliminate tickers at initialization (check dates)
     def __init__(self, tickers, hist_depth=None, train_depth=None, features=[], 
         data_path = 'data/', interval = '1mo', data_start = '2001-01-01', 
-        target='Close', download_new=False):
+        target='Return', download_new=False):
 
         self.portfolio = {}
         self.tickers = tickers
@@ -205,8 +216,9 @@ class Backtest:
                 data_path=self.data_path
                 )
             if type(ticker_df) != bool:
-                ticker_df.set_index('Date', inplace=True)
-                ticker_df.index = pd.to_datetime(ticker_df.index)
+                if 'Date' in ticker_df:
+                    ticker_df.set_index('Date', inplace=True)
+                    ticker_df.index = pd.to_datetime(ticker_df.index)
                 ticker_dict[ticker] = ticker_df
         
         self.tickers = list(ticker_dict.keys())
@@ -252,14 +264,43 @@ class Backtest:
         return X, tickers
     
 
-    # TODO Finish Function
     def build_machine(self, model, date):
-        print('UNFINISHED')
-        return None
+        X, y = self.build_train(date)
+
+        if 'skorch' in str(type(model)):
+            X = X.astype('float32')
+            y = y.astype('float32')
+            
+            y = y.reshape(-1, 1)
+
+        scaler_X = StandardScaler()
+        scaler_X.fit(X)
+        X = scaler_X.transform(X)
+        
+        model.fit(X, y)
+
+        test_df, tickers = self.build_test(date)
+        X_test = test_df
+
+        if 'skorch' in str(type(model)):
+            X_test = X_test.astype('float32')
+
+        X_test = scaler_X.transform(X_test)
+
+        predicted_returns = model.predict(X_test)
+        predicted_returns = np.ravel(predicted_returns)
+        predicted_returns = list(predicted_returns)
     
+        returns_dict = {}
+        
+        for i in range(len(tickers)):
+            returns_dict[tickers[i]] = predicted_returns[i]
+        
+        return returns_dict
+        
 
     # TODO Finish Function
-    def backtest(self, model):
+    def backtest(self, model, allocation_builder=fixed_long_short, alloc_params = {'long': 15, 'short': 0}):
         print('UNFINISHED')
         return None
 
