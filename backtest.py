@@ -167,14 +167,31 @@ def build_returns(interval, data_path='data/'):
         ticker_df.to_csv(data_path + prefix + ticker_label, index=False)
     return None
 
-# TODO Finish this function and 
-def fixed_long_short():
-    return None
+
+def fixed_long_short(returns_dict, long=15, short=0):
+    allocation = {
+        'long' : [], 
+        'short' : []
+    }
+    top = sorted(returns_dict.items(), key=lambda x: x[1])[::-1]
+    sorted_tickers = [x[0] for x in top]
+    
+    if long == 0:
+        allocation['long'] == []
+    else:
+        allocation['long'] = sorted_tickers[:long]
+    if short == 0:
+        allocation['short'] = []
+    else:
+        allocation['short'] = sorted_tickers[-1 * short:]
+    
+    return allocation
 
 class Backtest:
     # TODO Add usability to eliminate tickers at initialization (check dates)
     def __init__(self, tickers, hist_depth=None, train_depth=None, features=[], 
         data_path = 'data/', interval = '1mo', data_start = '2001-01-01', 
+        start_date = '2015-01-01', end_date = '2019-12-01', 
         target='Return', download_new=False):
 
         self.portfolio = {}
@@ -190,6 +207,9 @@ class Backtest:
         
         self.data_path = data_path
         self.prefix = str(interval + '/')
+
+        self.start_date = start_date
+        self.end_date = end_date
         
         self.results = []
         self.specific_returns = []
@@ -226,19 +246,31 @@ class Backtest:
         return ticker_dict
 
 
-    def get_returns(self, symbols, date):
-        returns = []
-        for ticker in symbols:
-            temp_ticker_dict = self.portfolio[ticker].loc[date]
-            returns.append((temp_ticker_dict['Close'] - temp_ticker_dict['Open'])/temp_ticker_dict['Open'])
-        return returns
+    def _check_date(self, ticker, date):
+        dates = self.portfolio[ticker].index
+        return date in dates
+    
+
+    def clean_portfolio(self, date):
+        for ticker in self.tickers:
+            if not self._check_date(ticker, date):
+                self.tickers.remove(ticker)
+        return None
+
+
+    # def get_returns(self, symbols, date):
+    #     returns = []
+    #     for ticker in symbols:
+    #         temp_ticker_dict = self.portfolio[ticker].loc[date]
+    #         returns.append((temp_ticker_dict['Close'] - temp_ticker_dict['Open'])/temp_ticker_dict['Open'])
+    #     return returns
 
 
     def build_train(self, date):
         X = np.zeros((self.train_depth * len(self.portfolio), self.hist_depth * len(self.features)))
         y = np.zeros(self.train_depth * len(self.portfolio))
         j = 0
-        for ticker in self.portfolio:
+        for ticker in self.tickers:
             ticker_df = self.portfolio[ticker]
             date_i = ticker_df.index.get_loc(date)
             for i in range(1, self.train_depth + 1):
@@ -252,15 +284,16 @@ class Backtest:
     
     def build_test(self, date):
         X = np.zeros((len(self.portfolio), self.hist_depth * len(self.features)))
-        tickers = list(self.portfolio.keys())
         j = 0
-        for ticker in tickers:
+        tickers = []
+        for ticker in self.tickers:
             ticker_df = self.portfolio[ticker]
             date_i = ticker_df.index.get_loc(date)
             start = date_i - self.hist_depth
             end = date_i
             X[j] = ticker_df.iloc[start:end][self.features].values.flatten()
             j += 1
+            tickers.append(ticker)
         return X, tickers
     
 
@@ -299,10 +332,52 @@ class Backtest:
         return returns_dict
         
 
-    # TODO Finish Function
     def backtest(self, model, allocation_builder=fixed_long_short, alloc_params = {'long': 15, 'short': 0}):
-        print('UNFINISHED')
-        return None
+        months = list(pd.date_range(self.start_date, self.end_date, freq='MS').strftime('%Y-%m-%d'))
+
+        for ticker in self.blacklist:
+            self.tickers.remove(ticker)
+
+        overall_returns = []
+        specific_returns = []
+
+        for month in months:
+            start_time = time()
+
+            self.clean_portfolio(month)
+
+            returns_dict = self.build_machine(model, month)
+
+            allocation = allocation_builder(returns_dict, **alloc_params)
+
+            long_returns = [
+                self.portfolio[ticker]['Return'][month] 
+                for ticker in allocation['long']
+                ]
+            short_returns = [
+                self.portfolio[ticker]['Return'][month] * -1
+                for ticker in allocation['short']
+                ]
+            
+            total_returns = long_returns + short_returns
+            average_returns = sum(total_returns)/len(total_returns)
+
+            specific_returns_dict = {'long': {}, 'short': {}}
+            for i in range(len(allocation['long'])):
+                specific_returns_dict['long'][allocation['long'][i]] = long_returns[i]
+
+            for i in range(len(allocation['short'])):
+                specific_returns_dict['short'][allocation['short'][i]] = short_returns[i]
+                
+            specific_returns.append(specific_returns_dict)
+            overall_returns.append(average_returns)
+
+            print(month, round(average_returns, 5), round(time() - start_time, 2))
+
+        return overall_returns, specific_returns
+
+
+
 
 
     # TODO Look into cleaning portfolio month by month
